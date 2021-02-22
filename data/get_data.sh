@@ -1,4 +1,4 @@
-wget https://physionet.org/challenge/2017/training2017.zip
+wget https://archive.physionet.org/challenge/2017/training2017.zip
 unzip training2017.zip
 rm training2017.zip
 cd training2017
