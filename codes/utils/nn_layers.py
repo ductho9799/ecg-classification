@@ -100,44 +100,95 @@ def mean_branch(input, length, out_s):
 
 def lstm_layer(data, length, n_neurons, n_layers, bidirectional=False, drop_rate=None):
     data = tfh.set_dynamiczero(data, length)
+    output = data
     seq_l = tfh.get_length(data)
     if bidirectional:
         # we concatenate forward and backward outputs to one output,
         # each must be only half the final size
+        
         n_neurons = int(n_neurons/2)
-        cell_fw = rnn.LSTMCell( n_neurons, state_is_tuple=True)
-        cell_fw = rnn.DropoutWrapper(cell_fw, output_keep_prob=1-drop_rate)
-        cell_fw = rnn.MultiRNNCell([cell_fw] * n_layers)
-        cell_bw = rnn.LSTMCell( n_neurons, state_is_tuple=True)
-        cell_bw = rnn.DropoutWrapper(cell_bw, output_keep_prob=1-drop_rate)
-        cell_bw = rnn.MultiRNNCell([cell_bw] * n_layers)
-        outputs,_ = tf.nn.bidirectional_dynamic_rnn(
-            cell_fw,
-            cell_bw,
-            data,
+        cell_fw_1 = rnn.LSTMCell( n_neurons, state_is_tuple=True, name = "LSTM_FW_1")
+        cell_fw_1 = rnn.DropoutWrapper(cell_fw_1, output_keep_prob=1-drop_rate)
+        cell_bw_1 = rnn.LSTMCell( n_neurons, state_is_tuple=True, name = "LSTM_BW_1")
+        cell_bw_1 = rnn.DropoutWrapper(cell_bw_1, output_keep_prob=1-drop_rate)
+        
+        outputs_1,_ = tf.nn.bidirectional_dynamic_rnn(
+            cell_fw_1,
+            cell_bw_1,
+            output,
             sequence_length=seq_l,
             dtype=tf.float32
         )
-        (output_fw, output_bw) = outputs
+        (output_fw_1, output_bw_1) = outputs_1
+        output_1 = tf.concat([output_bw_1, output_fw_1], axis = -1)
+
+
+        cell_fw_2 = rnn.LSTMCell( n_neurons, state_is_tuple=True, name = "LSTM_FW_2")
+        cell_fw_2 = rnn.DropoutWrapper(cell_fw_2, output_keep_prob=1-drop_rate)
+        cell_bw_2 = rnn.LSTMCell( n_neurons, state_is_tuple=True, name = "LSTM_BW_2")
+        cell_bw_2 = rnn.DropoutWrapper(cell_bw_2, output_keep_prob=1-drop_rate)
+        
+        outputs_2,_ = tf.nn.bidirectional_dynamic_rnn(
+            cell_fw_2,
+            cell_bw_2,
+            output,
+            sequence_length=seq_l,
+            dtype=tf.float32
+        )
+        (output_fw_2, output_bw_2) = outputs_2
+        output_2 = tf.concat([output_bw_2, output_fw_2], axis = -1)
+
+        cell_fw_3 = rnn.LSTMCell( n_neurons, state_is_tuple=True, name= "LSTM_FW_3")
+        cell_fw_3 = rnn.DropoutWrapper(cell_fw_3, output_keep_prob=1-drop_rate)
+        cell_bw_3 = rnn.LSTMCell( n_neurons, state_is_tuple=True, name = "LSTM_BW_3")
+        cell_bw_3 = rnn.DropoutWrapper(cell_bw_3, output_keep_prob=1-drop_rate)
+        
+        outputs_3,_ = tf.nn.bidirectional_dynamic_rnn(
+            cell_fw_3,
+            cell_bw_3,
+            output_2,
+            sequence_length=seq_l,
+            dtype=tf.float32
+        )
+        
+        (output_fw_3, output_bw_3) = outputs_3
+
+
         if rnn_all_outputs:
-            output_bw = average_features(output_bw, length)
-            output_fw = average_features(output_fw, length)
+            output_bw_3 = average_features(output_bw_3, length)
+            output_fw_3 = average_features(output_fw_3, length)
+            output = tf.concat([output_bw_3, output_fw_3], axis=-1)
+            
         else:
-            output_bw = output_bw[:,0,:]
-            output_fw = tfh.get_dynamiclast(output_fw, seq_l)
-        output = tf.concat([output_bw, output_fw], axis=1)
+            output_bw_3 = output_bw_3[:,0,:]
+            output_fw_3 = tfh.get_dynamiclast(output_fw_3, seq_l)
+            output = tf.concat([output_bw_3, output_fw_3], axis=1)
+
     else:
-        cell = rnn.LSTMCell( n_neurons, state_is_tuple=True)
-        cell = rnn.DropoutWrapper(cell, output_keep_prob=1-drop_rate)
-        cell = rnn.MultiRNNCell([cell] * n_layers)
+
+        cell_1 = rnn.LSTMCell(n_neurons, state_is_tuple=True)
+        cell_1 = rnn.DropoutWrapper(cell_1, output_keep_prob=1-drop_rate)
         output, _ = tf.nn.dynamic_rnn(
-            cell=cell,
+            cell=cell_1,
             dtype=tf.float32,
             sequence_length=seq_l,
-            inputs=data)
+            inputs=output)
+        cell_2 = rnn.LSTMCell(n_neurons, state_is_tuple=True)
+        cell_2 = rnn.DropoutWrapper(cell_2, output_keep_prob=1-drop_rate)
+        output, _ = tf.compat.v1.nn.dynamic_rnn(
+            cell=cell_2,
+            dtype=tf.float32,
+            sequence_length=seq_l,
+            inputs=output)
+        cell_3 = rnn.LSTMCell(n_neurons, state_is_tuple=True)
+        cell_3 = rnn.DropoutWrapper(cell_3, output_keep_prob=1-drop_rate)
+        output, _ = tf.nn.dynamic_rnn(
+            cell=cell_3,
+            dtype=tf.float32,
+            sequence_length=seq_l,
+            inputs=output)
         output = tfh.get_dynamiclast(output, seq_l)
     return output
-
 
 def awgn_channel(input, snr):
     # adds white gaussian noise to input, wherever input is not zero padded
